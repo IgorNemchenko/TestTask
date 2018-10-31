@@ -22,5 +22,9 @@
 #pragma warning(pop)
 #endif // #ifdef WIN32
 
+///////////////////////////////////////////////
+// Blackbone
+#include <BlackBone/LocalHook/LocalHook.hpp>
+
 
 

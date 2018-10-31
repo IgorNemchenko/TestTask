@@ -38,10 +38,10 @@ target_include_directories(${PROJECT_NAME}
 		src
 )
 
-#target_link_libraries(${PROJECT_NAME}
-#	PRIVATE
-#		libaim
-#)
+target_link_libraries(${PROJECT_NAME}
+	PUBLIC
+		BlackBoneLib
+)
 	
 if (MSVC)
 	# Use link time code generation in the Release builds. 
@@ -58,6 +58,7 @@ if (MSVC)
 
 	# Ignore warning for missing PDBs.
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /ignore:4099")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest" )
 	
 	# Disable SAFESEH check.
 	if(NOT (CMAKE_CL_64))
