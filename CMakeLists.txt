@@ -20,7 +20,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Project subdirectories.
 #
 
-# Add libpcure to the project.
-#add_subdirectory(external/libpcure)
+add_subdirectory(external/Blackbone/src)
 # Add gui to the project
 add_subdirectory(modules/injectDll)
