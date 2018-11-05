@@ -23,6 +23,14 @@
 #endif // #ifdef WIN32
 
 ///////////////////////////////////////////////
+//
+#include "ole2.h"
+#include "shellapi.h"
+#include <shlobj.h>
+#include <Shobjidl.h>
+//#include <shlwapi.h>
+
+///////////////////////////////////////////////
 // Blackbone
 #include <BlackBone/LocalHook/LocalHook.hpp>
 

@@ -36,12 +36,14 @@ target_include_directories(${PROJECT_NAME}
 	PRIVATE
 		include
 		src
+		${CMAKE_SOURCE_DIR}/external
+
 )
 
 target_link_libraries(${PROJECT_NAME}
-	PUBLIC
-		BlackBoneLib
-)
+	debug ${CMAKE_SOURCE_DIR}/external/Blackbone/lib/BlackBone_d.lib
+    optimized ${CMAKE_SOURCE_DIR}/external/Blackbone/lib/BlackBone.lib
+    )
 	
 if (MSVC)
 	# Use link time code generation in the Release builds. 

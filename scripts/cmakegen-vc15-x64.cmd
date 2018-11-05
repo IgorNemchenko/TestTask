@@ -12,6 +12,7 @@ set errorlevel = 0
 
 cmake ^
 	-G"Visual Studio 15 2017 Win64" -T "v141" ^
+	"-DBUILD_WITH_STATIC_CRT:BOOL=ON" ^
 	"-Wno-dev" ^
 	../..
 
