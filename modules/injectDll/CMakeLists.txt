@@ -41,8 +41,8 @@ target_include_directories(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-	debug ${CMAKE_SOURCE_DIR}/external/Blackbone/lib/BlackBone_d.lib
-    optimized ${CMAKE_SOURCE_DIR}/external/Blackbone/lib/BlackBone.lib
+	debug ${CMAKE_SOURCE_DIR}/external/Blackbone/lib/BlackBone_d.lib Oleacc.lib
+    optimized ${CMAKE_SOURCE_DIR}/external/Blackbone/lib/BlackBone.lib Oleacc.lib
     )
 	
 if (MSVC)

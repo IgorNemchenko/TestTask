@@ -4,10 +4,6 @@
 #include <sstream>
 #include <string>
 
-HMODULE h = NULL;
-HWND Button = NULL;
-
-//typedef HMODULE(WINAPI* HOOKLoadLibraryW)(LPCWSTR);
 typedef HRESULT(WINAPI* TRegisterDragDrop)(HWND, LPDROPTARGET);
 typedef HRESULT(WINAPI* TDrop)
 (	void * point,
@@ -16,7 +12,7 @@ typedef HRESULT(WINAPI* TDrop)
 	POINTL      pt,
 	DWORD       *pdwEffect
 );
-
+/*
 typedef HRESULT (WINAPI* TCoCreateInstance)
 (
 	REFCLSID  rclsid,
@@ -25,7 +21,7 @@ typedef HRESULT (WINAPI* TCoCreateInstance)
 	REFIID    riid,
 	LPVOID    *ppv
 );
-
+*/
 typedef INT_PTR(WINAPI* TDialogBoxIndirectParamW)
 (	HINSTANCE       hInstance,
 	LPCDLGTEMPLATEW hDialogTemplate,
@@ -34,7 +30,7 @@ typedef INT_PTR(WINAPI* TDialogBoxIndirectParamW)
 	LPARAM          dwInitParam
 );
 
-typedef HRESULT(WINAPI* TGetResult)
+/*typedef HRESULT(WINAPI* TGetResult)
 (
 	void *point,
 	IShellItem **ppsi
@@ -50,7 +46,7 @@ typedef HRESULT(WINAPI* TShow)
 	void *point,
 	HWND hwndOwner
 );
-
+*/
 typedef INT_PTR (CALLBACK * TDialogProc)
 (
 	HWND   hwndDlg,
@@ -59,48 +55,96 @@ typedef INT_PTR (CALLBACK * TDialogProc)
 	LPARAM  lParam
 );
 
-//HOOKLoadLibraryW addrW = NULL;
-//blackbone::Detour<HOOKLoadLibraryW> detourLoadLibraryW;
-
 blackbone::Detour<TRegisterDragDrop> detourRegisterDragDrop;
 blackbone::Detour<TDrop> detourDrop;
-
-blackbone::Detour<TCoCreateInstance> detourCoCreateInstance;
 blackbone::Detour<TDialogBoxIndirectParamW> detourDialogBoxIndirectParamW;
-blackbone::Detour<TGetResult> detourGetResult;
-blackbone::Detour<TGetResults> detourGetResults;
-blackbone::Detour<TShow> detourShow;
 blackbone::Detour<TDialogProc> detourDialogProc;
 
-IFileDialog *pfd = NULL;
-IShellItem * psiResult = NULL;
-
-
-BOOL CALLBACK IsButton(
-	_In_ HWND   hwnd,
-	_In_ LPARAM lParam
-)
-{
-	BOOL res = true;
-	if (GetWindowLong(hwnd, GWL_ID) == 1)
-	{
-		Button = hwnd;
-		res = false;
-	}
-	return res;
-}
-
-void GetButtonHWND(HWND   hwnd)
-{
-	Button = NULL;
-	EnumChildWindows(hwnd, IsButton, 0);
-}
+//blackbone::Detour<TCoCreateInstance> detourCoCreateInstance;
+//blackbone::Detour<TGetResult> detourGetResult;
+//blackbone::Detour<TGetResults> detourGetResults;
+//blackbone::Detour<TShow> detourShow;
+//IFileDialog *pfd = NULL;
+//IShellItem * psiResult = NULL;
 
 void PrintMsg(const std::wstring & msg)
 {
 	std::wstring fullMsg = L"TestTask: ";
 	fullMsg += msg;
 	OutputDebugString(fullMsg.c_str());
+}
+
+std::wstring GetName(IAccessible *pAcc)
+{
+	CComBSTR bstrName;
+	if (!pAcc || FAILED(pAcc->get_accName(CComVariant((int)CHILDID_SELF), &bstrName)) || !bstrName.m_str)
+		return L"";
+
+	return bstrName.m_str;
+}
+
+HRESULT FindSelectedFiles(CComPtr<IAccessible> pAcc)
+{
+	long childCount = 0;
+	long returnCount = 0;
+
+	HRESULT hr = pAcc->get_accChildCount(&childCount);
+
+	if (childCount == 0)
+		return S_OK;
+
+	CComVariant* pArray = new CComVariant[childCount];
+	hr = ::AccessibleChildren(pAcc, 0L, childCount, pArray, &returnCount);
+	if (FAILED(hr))
+		return hr;
+
+	for (int x = 0; x < returnCount; x++)
+	{
+		CComVariant vtChild = pArray[x];
+		if (vtChild.vt != VT_DISPATCH)
+			continue;
+
+		CComPtr<IDispatch> pDisp = vtChild.pdispVal;
+		CComQIPtr<IAccessible> pAccChild = pDisp;
+		if (!pAccChild)
+			continue;
+
+		std::wstring name = GetName(pAccChild).data();
+				
+		CComVariant roleName;
+		HRESULT h = pAccChild->get_accRole(CComVariant((int)CHILDID_SELF), &roleName);
+
+		if ((hr == S_OK) && 
+			(roleName.vt == VT_I4) && 
+			(roleName.lVal == 0x21) && 
+			name.find(L"Просмотр элементов") != -1)
+		{
+			CComVariant SelElement;
+			pAccChild->get_accSelection(&SelElement);
+			if (SelElement.punkVal)
+			{
+				CComPtr<IUnknown> pUnk = SelElement.punkVal;
+				CComPtr <IEnumVARIANT> pList;
+				pUnk->QueryInterface(IID_IEnumVARIANT, (void**)&pList);
+				
+				CComVariant currElement;
+				while (S_OK == pList->Next(1, &currElement, 0))
+				{
+					CComPtr<IDispatch> pDisp = currElement.pdispVal;
+					CComQIPtr<IAccessible> pAccChild = pDisp;
+					if (!pAccChild)
+						continue;
+					std::wstring name = GetName(pAccChild).data();
+					PrintMsg(name);
+				}
+			}
+		}
+		if (FindSelectedFiles(pAccChild) == S_FALSE)
+			return S_FALSE;
+	}
+
+	delete[] pArray;
+	return S_OK;
 }
 
 INT_PTR CALLBACK hkDialogProc(
@@ -110,13 +154,28 @@ INT_PTR CALLBACK hkDialogProc(
 	LPARAM & lParam
 )
 {
-	GetButtonHWND(hwndDlg);
-	PrintMsg(L"hkDialogProc");
+	//PrintMsg(L"hkDialogProc");
+	switch (uMsg)
+	{
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDOK:
+
+			CComPtr<IAccessible> pAccMain1;
+			
+			HRESULT hr = ::AccessibleObjectFromWindow(hwndDlg, 1, IID_IAccessible, (void**)(&pAccMain1)); 
+			CComPtr<IAccessible> pAccMain2;
+			
+			hr = ::AccessibleObjectFromWindow(hwndDlg, OBJID_CLIENT, IID_IAccessible, (void**)(&pAccMain2));
+			FindSelectedFiles(pAccMain2);
+		}
+	}
 
 	return 1;
 }
 
-HRESULT WINAPI hkGetResult
+/*HRESULT WINAPI hkGetResult
 (
 	void * & point,
 	IShellItem ** & ppsi
@@ -144,7 +203,7 @@ HRESULT WINAPI hkShow
 {
 	PrintMsg(L"hkShow");
 	return S_OK;
-}
+}*/
 
 HRESULT WINAPI  hkDrop
 (	
@@ -198,7 +257,7 @@ HRESULT WINAPI hkRegisterDragDrop(
 
 	return ERROR_SUCCESS;
 }
-
+/*
 HRESULT WINAPI hkCoCreateInstance
 (
 	REFCLSID   rclsid,
@@ -208,7 +267,6 @@ HRESULT WINAPI hkCoCreateInstance
 	LPVOID *  & ppv
 )
 {
-	
 	//PrintMsg(L"hkCoCreateInstance");
 	LPOLESTR clsidStr;
 	StringFromCLSID(
@@ -243,7 +301,7 @@ HRESULT WINAPI hkCoCreateInstance
 
 	return S_OK;
 }
-
+*/
 INT_PTR WINAPI hkDialogBoxIndirectParamW
 (HINSTANCE       & hInstance,
 	LPCDLGTEMPLATEW & hDialogTemplate,
@@ -259,18 +317,6 @@ INT_PTR WINAPI hkDialogBoxIndirectParamW
 	return 1;
 }
 
-/*
-HMODULE WINAPI hkLoadLibraryW(LPCWSTR & lpLibFileName)
-{
-	OutputDebugString(TEXT(L"LoadLibraryW"));
-	if (std::wstring(lpLibFileName) == L"Ole32")
-	{
-		OutputDebugString(L"---LoadLibraryW-Ole32.dll---");
-	}
-	
-	return (HMODULE)1;
-}
-*/
 std::string ProcessIdToName(DWORD processId)
 {
 	std::string ret;
@@ -279,24 +325,20 @@ std::string ProcessIdToName(DWORD processId)
 		FALSE,
 		processId 
 	);
-	if (handle)
+	
+	if (!handle)
 	{
-		DWORD buffSize = 1024;
-		CHAR buffer[1024];
-		if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
-		{
-			ret = buffer;
-		}
-		else
-		{
-			//printf("Error GetModuleBaseNameA : %lu", GetLastError());
-		}
-		CloseHandle(handle);
+		return ret;
 	}
-	else
+	
+	DWORD buffSize = 1024;
+	CHAR buffer[1024];
+	if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
 	{
-		//printf("Error OpenProcess : %lu", GetLastError());
+		ret = buffer;
 	}
+	CloseHandle(handle);
+
 	return ret;
 }
 
@@ -313,11 +355,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 	std::string currProcName;
 	bool isOurBrowser = false;
 	TRegisterDragDrop pRegisterDragDrop = NULL;
-	TCoCreateInstance pCoCreateInstance = NULL;
+	//TCoCreateInstance pCoCreateInstance = NULL;
 	TDialogBoxIndirectParamW pDialogBoxIndirectParamW = NULL;
 	bool res;
 	
-		
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
@@ -339,10 +380,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 		}
 		
 		hOle32 = GetModuleHandle(TEXT("Ole32"));
+		
+		CoInitialize(NULL);
 		if (hOle32)
 		{
-			
-			//Sleep(20000);
 			pRegisterDragDrop = reinterpret_cast<TRegisterDragDrop>(::GetProcAddress(hOle32, "RegisterDragDrop"));
 			res = detourRegisterDragDrop.Hook(pRegisterDragDrop, &hkRegisterDragDrop, blackbone::HookType::Inline, blackbone::CallOrder::HookLast);
 
@@ -350,10 +391,10 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 			//res = detourCoCreateInstance.Hook(pCoCreateInstance, &hkCoCreateInstance, blackbone::HookType::Inline, blackbone::CallOrder::HookLast);
 
 		}
+		
 		hUser32 = GetModuleHandle(TEXT("User32"));
 		if (hUser32)
 		{
-			//PrintMsg(L"User32");
 			pDialogBoxIndirectParamW = reinterpret_cast<TDialogBoxIndirectParamW>(::GetProcAddress(hUser32, "DialogBoxIndirectParamW"));
 			res = detourDialogBoxIndirectParamW.Hook(pDialogBoxIndirectParamW, &hkDialogBoxIndirectParamW, blackbone::HookType::Inline, blackbone::CallOrder::HookFirst);
 		}
