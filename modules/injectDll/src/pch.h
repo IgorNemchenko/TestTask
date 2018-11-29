@@ -28,7 +28,7 @@
 #include "shellapi.h"
 #include <shlobj.h>
 #include <Shobjidl.h>
-//#include <shlwapi.h>
+#include <uiautomation.h>
 
 ///////////////////////////////////////////////
 // Blackbone
